@@ -755,8 +755,18 @@ fn launch_options_from_env() -> LaunchOptions {
         .map(|v| v == "1" || v == "true")
         .unwrap_or(false);
 
+    let extensions: Option<Vec<String>> = env::var("AGENT_BROWSER_EXTENSIONS").ok().map(|v| {
+        v.split([',', '\n'])
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
+    });
+
+    let has_extensions = extensions.as_ref().map(|e| !e.is_empty()).unwrap_or(false);
+    let headless = if has_extensions { false } else { !headed };
+
     LaunchOptions {
-        headless: !headed,
+        headless,
         executable_path: env::var("AGENT_BROWSER_EXECUTABLE_PATH").ok(),
         proxy: env::var("AGENT_BROWSER_PROXY").ok(),
         proxy_bypass: env::var("AGENT_BROWSER_PROXY_BYPASS").ok(),
@@ -772,12 +782,7 @@ fn launch_options_from_env() -> LaunchOptions {
                     .collect()
             })
             .unwrap_or_default(),
-        extensions: env::var("AGENT_BROWSER_EXTENSIONS").ok().map(|v| {
-            v.split([',', '\n'])
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect()
-        }),
+        extensions,
         storage_state: env::var("AGENT_BROWSER_STATE").ok(),
         user_agent: env::var("AGENT_BROWSER_USER_AGENT").ok(),
         ignore_https_errors: env::var("AGENT_BROWSER_IGNORE_HTTPS_ERRORS")
@@ -823,7 +828,7 @@ async fn try_auto_restore_state(state: &mut DaemonState) {
 // ---------------------------------------------------------------------------
 
 async fn handle_launch(cmd: &Value, state: &mut DaemonState) -> Result<Value, String> {
-    let headless = cmd
+    let mut headless = cmd
         .get("headless")
         .and_then(|v| v.as_bool())
         .unwrap_or(true);
@@ -866,6 +871,11 @@ async fn handle_launch(cmd: &Value, state: &mut DaemonState) -> Result<Value, St
                 .filter_map(|v| v.as_str().map(String::from))
                 .collect()
         });
+
+    let has_extensions = extensions.as_ref().map(|e| !e.is_empty()).unwrap_or(false);
+    if has_extensions {
+        headless = false;
+    }
     let profile = cmd.get("profile").and_then(|v| v.as_str());
     let storage_state = cmd.get("storageState").and_then(|v| v.as_str());
     let allow_file_access = cmd
@@ -5158,6 +5168,30 @@ mod tests {
         assert!(opts.headless);
         assert!(opts.args.is_empty());
         assert!(!opts.allow_file_access);
+    }
+
+    #[test]
+    fn test_launch_options_from_env_extensions_force_headed() {
+        let prev = env::var("AGENT_BROWSER_EXTENSIONS").ok();
+        env::set_var("AGENT_BROWSER_EXTENSIONS", "/path/to/ext");
+        let opts = launch_options_from_env();
+        assert!(!opts.headless, "Extensions should force headless=false");
+        match prev {
+            Some(v) => env::set_var("AGENT_BROWSER_EXTENSIONS", v),
+            None => env::remove_var("AGENT_BROWSER_EXTENSIONS"),
+        }
+    }
+
+    #[test]
+    fn test_launch_options_from_env_headed_flag() {
+        let prev = env::var("AGENT_BROWSER_HEADED").ok();
+        env::set_var("AGENT_BROWSER_HEADED", "1");
+        let opts = launch_options_from_env();
+        assert!(!opts.headless, "AGENT_BROWSER_HEADED=1 should set headless=false");
+        match prev {
+            Some(v) => env::set_var("AGENT_BROWSER_HEADED", v),
+            None => env::remove_var("AGENT_BROWSER_HEADED"),
+        }
     }
 
     #[tokio::test]
