@@ -55,6 +55,7 @@ pub struct LaunchOptions {
     pub ignore_https_errors: bool,
     pub color_scheme: Option<String>,
     pub download_path: Option<String>,
+    pub engine: Option<String>,
 }
 
 impl Default for LaunchOptions {
@@ -73,6 +74,7 @@ impl Default for LaunchOptions {
             ignore_https_errors: false,
             color_scheme: None,
             download_path: None,
+            engine: None,
         }
     }
 }

@@ -7,6 +7,7 @@ use super::cdp::chrome::{
     auto_connect_cdp, discover_cdp_url, launch_chrome, ChromeProcess, LaunchOptions,
 };
 use super::cdp::client::CdpClient;
+use super::cdp::lightpanda::{launch_lightpanda, LightpandaLaunchOptions, LightpandaProcess};
 use super::cdp::types::*;
 
 // ---------------------------------------------------------------------------
@@ -105,9 +106,23 @@ impl WaitUntil {
     }
 }
 
+pub enum BrowserProcess {
+    Chrome(ChromeProcess),
+    Lightpanda(LightpandaProcess),
+}
+
+impl BrowserProcess {
+    pub fn kill(&mut self) {
+        match self {
+            BrowserProcess::Chrome(p) => p.kill(),
+            BrowserProcess::Lightpanda(p) => p.kill(),
+        }
+    }
+}
+
 pub struct BrowserManager {
     pub client: CdpClient,
-    chrome_process: Option<ChromeProcess>,
+    browser_process: Option<BrowserProcess>,
     pages: Vec<PageInfo>,
     active_page_index: usize,
     default_timeout_ms: u64,
@@ -129,13 +144,26 @@ impl BrowserManager {
         let color_scheme = options.color_scheme.clone();
         let download_path = options.download_path.clone();
 
-        let chrome = launch_chrome(&options)?;
-        let ws_url = chrome.ws_url.clone();
+        let engine = options.engine.as_deref().unwrap_or("chrome");
+        let (ws_url, process) = if engine == "lightpanda" {
+            let lp_options = LightpandaLaunchOptions {
+                executable_path: options.executable_path.clone(),
+                proxy: options.proxy.clone(),
+                port: None,
+            };
+            let lp = launch_lightpanda(&lp_options)?;
+            let url = lp.ws_url.clone();
+            (url, BrowserProcess::Lightpanda(lp))
+        } else {
+            let chrome = launch_chrome(&options)?;
+            let url = chrome.ws_url.clone();
+            (url, BrowserProcess::Chrome(chrome))
+        };
 
         let client = CdpClient::connect(&ws_url).await?;
         let mut manager = Self {
             client,
-            chrome_process: Some(chrome),
+            browser_process: Some(process),
             pages: Vec::new(),
             active_page_index: 0,
             default_timeout_ms: 25_000,
@@ -197,7 +225,7 @@ impl BrowserManager {
         let client = CdpClient::connect(&ws_url).await?;
         let mut manager = Self {
             client,
-            chrome_process: None,
+            browser_process: None,
             pages: Vec::new(),
             active_page_index: 0,
             default_timeout_ms: 10_000,
@@ -501,15 +529,13 @@ impl BrowserManager {
     }
 
     pub async fn close(&mut self) -> Result<(), String> {
-        // Close the browser via CDP if possible
         let _ = self
             .client
             .send_command_no_params("Browser.close", None)
             .await;
 
-        // Kill Chrome process if we own it
-        if let Some(ref mut chrome) = self.chrome_process {
-            chrome.kill();
+        if let Some(ref mut process) = self.browser_process {
+            process.kill();
         }
 
         Ok(())
@@ -538,7 +564,7 @@ impl BrowserManager {
 
     /// Returns true if this manager was connected via CDP (as opposed to local launch).
     pub fn is_cdp_connection(&self) -> bool {
-        self.chrome_process.is_none()
+        self.browser_process.is_none()
     }
 
     /// Ensures the browser has at least one page. If `pages` is empty, creates a new
