@@ -16,6 +16,24 @@ impl ChromeProcess {
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
+
+    /// Wait for Chrome to exit on its own (after Browser.close CDP command),
+    /// falling back to kill() if it doesn't exit within the timeout.
+    /// This allows Chrome to flush cookies and other state to the user-data-dir.
+    pub fn wait_or_kill(&mut self, timeout: Duration) {
+        let start = std::time::Instant::now();
+        let poll_interval = Duration::from_millis(50);
+
+        while start.elapsed() < timeout {
+            match self.child.try_wait() {
+                Ok(Some(_)) => return,
+                Ok(None) => std::thread::sleep(poll_interval),
+                Err(_) => break,
+            }
+        }
+
+        self.kill();
+    }
 }
 
 impl Drop for ChromeProcess {
@@ -766,6 +784,48 @@ mod tests {
             .args
             .iter()
             .any(|a| a.contains("--disable-features") && a.contains("Translate")));
+        if let Some(ref dir) = result.temp_user_data_dir {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+
+    #[test]
+    fn test_build_args_headless_with_extensions_skips_headless_flag() {
+        let opts = LaunchOptions {
+            headless: true,
+            extensions: Some(vec!["/tmp/my-ext".to_string()]),
+            ..Default::default()
+        };
+        let result = build_chrome_args(&opts).unwrap();
+        assert!(
+            !result.args.iter().any(|a| a.contains("--headless")),
+            "headless flag should be omitted when extensions are present"
+        );
+        assert!(result
+            .args
+            .iter()
+            .any(|a| a.starts_with("--load-extension=")));
+        if let Some(ref dir) = result.temp_user_data_dir {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+
+    #[test]
+    fn test_build_args_headed_with_extensions_no_headless_flag() {
+        let opts = LaunchOptions {
+            headless: false,
+            extensions: Some(vec!["/tmp/my-ext".to_string()]),
+            ..Default::default()
+        };
+        let result = build_chrome_args(&opts).unwrap();
+        assert!(
+            !result.args.iter().any(|a| a.contains("--headless")),
+            "headless flag should not be present in headed mode"
+        );
+        assert!(result
+            .args
+            .iter()
+            .any(|a| a.starts_with("--load-extension=")));
         if let Some(ref dir) = result.temp_user_data_dir {
             let _ = std::fs::remove_dir_all(dir);
         }
