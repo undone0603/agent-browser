@@ -3,11 +3,12 @@ import { BrowserManager } from '../src/browser.js';
 import { writeFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { pathToFileURL } from 'node:url';
 
 describe('File Access (Issue #345)', () => {
   let browser: BrowserManager;
   const testFilePath = path.join(os.tmpdir(), 'agent-browser-test-file.html');
-  const testFileUrl = `file://${testFilePath}`;
+  const testFileUrl = pathToFileURL(testFilePath).href;
 
   // Create test HTML file before tests
   beforeAll(() => {

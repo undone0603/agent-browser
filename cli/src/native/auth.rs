@@ -37,11 +37,28 @@ fn validate_profile_name(name: &str) -> Result<(), String> {
 }
 
 fn get_auth_dir() -> PathBuf {
-    if let Some(home) = dirs::home_dir() {
-        home.join(".agent-browser").join("auth")
-    } else {
-        std::env::temp_dir().join("agent-browser").join("auth")
+    let mut candidates = Vec::new();
+
+    if let Ok(explicit) = std::env::var("AGENT_BROWSER_AUTH_DIR") {
+        let trimmed = explicit.trim();
+        if !trimmed.is_empty() {
+            candidates.push(PathBuf::from(trimmed));
+        }
     }
+
+    if let Some(home) = dirs::home_dir() {
+        candidates.push(home.join(".agent-browser").join("auth"));
+    }
+
+    candidates.push(std::env::temp_dir().join("agent-browser").join("auth"));
+
+    for dir in candidates {
+        if dir.exists() || fs::create_dir_all(&dir).is_ok() {
+            return dir;
+        }
+    }
+
+    std::env::temp_dir().join("agent-browser").join("auth")
 }
 
 fn get_profile_path(name: &str) -> PathBuf {
@@ -116,7 +133,7 @@ fn decrypt_profile(data: &[u8]) -> Result<AuthProfile, String> {
 
 fn save_profile(profile: &AuthProfile) -> Result<(), String> {
     let dir = get_auth_dir();
-    let _ = fs::create_dir_all(&dir);
+    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create auth dir: {}", e))?;
 
     let encrypted = encrypt_profile(profile)?;
     let path = get_profile_path(&profile.name);

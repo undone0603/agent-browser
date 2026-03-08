@@ -533,5 +533,6 @@ pub struct BrowserVersionInfo {
 ///
 /// Usage: `use super::cdp::types::generated::cdp_page::*;`
 pub mod generated {
+    #![allow(clippy::upper_case_acronyms)]
     include!(concat!(env!("OUT_DIR"), "/cdp_generated.rs"));
 }

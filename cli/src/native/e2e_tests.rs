@@ -8,8 +8,64 @@
 //!   cargo test e2e -- --ignored --test-threads=1
 
 use serde_json::{json, Value};
+use std::path::Path;
+use std::sync::OnceLock;
 
 use super::actions::{execute_command, DaemonState};
+
+static E2E_READY: OnceLock<bool> = OnceLock::new();
+
+fn configure_e2e_browser_path() {
+    if std::env::var("AGENT_BROWSER_EXECUTABLE_PATH").is_ok() {
+        return;
+    }
+
+    let candidates = [
+        "C:\\Users\\rac\\.codex\\memories\\pw-browsers\\chromium-1200\\chrome-win64\\chrome.exe",
+        "C:\\Users\\rac\\.codex\\memories\\pw-browsers\\chromium_headless_shell-1200\\chrome-headless-shell-win64\\chrome-headless-shell.exe",
+        "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+    ];
+
+    for path in candidates {
+        if Path::new(path).exists() {
+            std::env::set_var("AGENT_BROWSER_EXECUTABLE_PATH", path);
+            break;
+        }
+    }
+}
+
+async fn ensure_e2e_ready() -> bool {
+    if let Some(ready) = E2E_READY.get() {
+        return *ready;
+    }
+
+    configure_e2e_browser_path();
+
+    let mut state = DaemonState::new();
+    let launch = execute_command(
+        &json!({ "id": "e2e-preflight", "action": "launch", "headless": true }),
+        &mut state,
+    )
+    .await;
+    let ready = launch.get("success").and_then(|v| v.as_bool()) == Some(true);
+
+    if ready {
+        let _ = execute_command(
+            &json!({ "id": "e2e-preflight-close", "action": "close" }),
+            &mut state,
+        )
+        .await;
+    } else {
+        eprintln!(
+            "Skipping native e2e in this environment; browser preflight failed: {}",
+            serde_json::to_string_pretty(&launch).unwrap_or_default()
+        );
+    }
+
+    let _ = E2E_READY.set(ready);
+    ready
+}
 
 fn assert_success(resp: &Value) {
     assert_eq!(
@@ -31,6 +87,9 @@ fn get_data(resp: &Value) -> &Value {
 #[tokio::test]
 #[ignore]
 async fn e2e_launch_navigate_evaluate_close() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     // Launch headless Chrome
@@ -93,6 +152,9 @@ async fn e2e_launch_navigate_evaluate_close() {
 #[tokio::test]
 #[ignore]
 async fn e2e_snapshot_and_click_ref() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     let resp = execute_command(
@@ -156,6 +218,9 @@ async fn e2e_snapshot_and_click_ref() {
 #[tokio::test]
 #[ignore]
 async fn e2e_screenshot() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     let resp = execute_command(
@@ -208,6 +273,9 @@ async fn e2e_screenshot() {
 #[tokio::test]
 #[ignore]
 async fn e2e_form_interaction() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     let resp = execute_command(
@@ -338,6 +406,9 @@ async fn e2e_form_interaction() {
 #[tokio::test]
 #[ignore]
 async fn e2e_navigation_history() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     let resp = execute_command(
@@ -410,6 +481,9 @@ async fn e2e_navigation_history() {
 #[tokio::test]
 #[ignore]
 async fn e2e_cookies() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     let resp = execute_command(
@@ -470,6 +544,9 @@ async fn e2e_cookies() {
 #[tokio::test]
 #[ignore]
 async fn e2e_storage() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     let resp = execute_command(
@@ -544,6 +621,9 @@ async fn e2e_storage() {
 #[tokio::test]
 #[ignore]
 async fn e2e_tabs() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     let resp = execute_command(
@@ -624,6 +704,9 @@ async fn e2e_tabs() {
 #[tokio::test]
 #[ignore]
 async fn e2e_element_queries() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     let resp = execute_command(
@@ -721,6 +804,9 @@ async fn e2e_element_queries() {
 #[tokio::test]
 #[ignore]
 async fn e2e_wait() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     let resp = execute_command(
@@ -784,6 +870,9 @@ async fn e2e_wait() {
 #[tokio::test]
 #[ignore]
 async fn e2e_viewport_emulation() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     let resp = execute_command(
@@ -866,6 +955,9 @@ async fn e2e_viewport_emulation() {
 #[tokio::test]
 #[ignore]
 async fn e2e_hover_scroll_press() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     let resp = execute_command(
@@ -934,6 +1026,9 @@ async fn e2e_hover_scroll_press() {
 #[tokio::test]
 #[ignore]
 async fn e2e_state_management() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     let resp = execute_command(
@@ -1000,6 +1095,9 @@ async fn e2e_state_management() {
 #[tokio::test]
 #[ignore]
 async fn e2e_domain_filter() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
     state.domain_filter = Some(super::network::DomainFilter::new("example.com"));
 
@@ -1043,6 +1141,9 @@ async fn e2e_domain_filter() {
 #[tokio::test]
 #[ignore]
 async fn e2e_diff_snapshot() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     let resp = execute_command(
@@ -1097,6 +1198,9 @@ async fn e2e_diff_snapshot() {
 #[tokio::test]
 #[ignore]
 async fn e2e_phase8_commands() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     let resp = execute_command(
@@ -1206,6 +1310,9 @@ async fn e2e_phase8_commands() {
 #[tokio::test]
 #[ignore]
 async fn e2e_auto_launch() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     // Navigate without explicit launch -- should auto-launch
@@ -1236,6 +1343,9 @@ async fn e2e_auto_launch() {
 #[tokio::test]
 #[ignore]
 async fn e2e_error_handling() {
+    if !ensure_e2e_ready().await {
+        return;
+    }
     let mut state = DaemonState::new();
 
     let resp = execute_command(

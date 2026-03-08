@@ -1,7 +1,7 @@
 use serde_json::Value;
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -47,7 +47,7 @@ pub async fn run_daemon(session: &str) {
 }
 
 #[cfg(unix)]
-async fn run_socket_server(socket_path: &PathBuf, _session: &str) -> Result<(), String> {
+async fn run_socket_server(socket_path: &Path, _session: &str) -> Result<(), String> {
     use tokio::net::UnixListener;
 
     let listener =
@@ -85,7 +85,7 @@ async fn run_socket_server(socket_path: &PathBuf, _session: &str) -> Result<(), 
 }
 
 #[cfg(windows)]
-async fn run_socket_server(socket_path: &PathBuf, session: &str) -> Result<(), String> {
+async fn run_socket_server(socket_path: &Path, session: &str) -> Result<(), String> {
     use tokio::net::TcpListener;
 
     let port = get_port_for_session(session);

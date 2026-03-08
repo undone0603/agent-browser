@@ -147,7 +147,7 @@ fn get_port_for_session(session: &str) -> u16 {
     }
     // Correct logic: first take absolute modulo, then cast to u16
     // Using unsigned_abs() to safely handle i32::MIN
-    49152 + ((hash.unsigned_abs() as u32 % 16383) as u16)
+    49152 + ((hash.unsigned_abs() % 16383) as u16)
 }
 
 #[cfg(unix)]
@@ -529,15 +529,10 @@ pub fn ensure_daemon(session: &str, opts: &DaemonOptions) -> Result<DaemonResult
     #[cfg(unix)]
     let endpoint_info = format!(
         "socket: {}",
-        get_socket_dir()
-            .join(format!("{}.sock", session))
-            .display()
+        get_socket_dir().join(format!("{}.sock", session)).display()
     );
     #[cfg(windows)]
-    let endpoint_info = format!(
-        "port: 127.0.0.1:{}",
-        get_port_for_session(session)
-    );
+    let endpoint_info = format!("port: 127.0.0.1:{}", get_port_for_session(session));
 
     Err(format!("Daemon failed to start ({})", endpoint_info))
 }

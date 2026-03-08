@@ -202,7 +202,8 @@ function getPortForSession(session: string): number {
 export function getAppDir(): string {
   // 1. XDG_RUNTIME_DIR (Linux standard)
   if (process.env.XDG_RUNTIME_DIR) {
-    return path.join(process.env.XDG_RUNTIME_DIR, 'agent-browser');
+    const runtimeDir = process.env.XDG_RUNTIME_DIR.replace(/[\\/]+$/, '');
+    return `${runtimeDir}/agent-browser`;
   }
 
   // 2. Home directory fallback (like Docker Desktop's ~/.docker/run/)
