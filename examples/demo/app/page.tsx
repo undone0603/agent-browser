@@ -416,11 +416,11 @@ export default function Home() {
             </span>
             <span className="text-muted-foreground text-sm hidden sm:inline">/</span>
             <span className="text-sm text-muted-foreground hidden sm:inline">
-              Environments
+              Demo
             </span>
           </div>
           <a
-            href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fagent-browser%2Fagent-browser%2Ftree%2Fmain%2Fexamples%2Fenvironments&env=CHROMIUM_PATH&envDescription=Optional%20path%20to%20Chromium%20binary.%20Not%20needed%20on%20Vercel.&envLink=https%3A%2F%2Fgithub.com%2Fagent-browser%2Fagent-browser%2Ftree%2Fmain%2Fexamples%2Fenvironments%23environment-variables&project-name=agent-browser-app&repository-name=agent-browser-app"
+            href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fagent-browser%2Fagent-browser%2Ftree%2Fmain%2Fexamples%2Fdemo&env=CHROMIUM_PATH&envDescription=Optional%20path%20to%20Chromium%20binary.%20Not%20needed%20on%20Vercel.&envLink=https%3A%2F%2Fgithub.com%2Fagent-browser%2Fagent-browser%2Ftree%2Fmain%2Fexamples%2Fdemo%23environment-variables&project-name=agent-browser-demo&repository-name=agent-browser-demo"
             target="_blank"
             rel="noopener noreferrer"
           >

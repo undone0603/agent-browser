@@ -166,10 +166,10 @@ Run this once, then set the environment variable:
 AGENT_BROWSER_SNAPSHOT_ID=snap_xxxxxxxxxxxx
 ```
 
-A helper script is available in the environments example:
+A helper script is available in the demo app:
 
 ```bash
-npx tsx examples/environments/scripts/create-snapshot.ts
+npx tsx examples/demo/scripts/create-snapshot.ts
 ```
 
 ## Scheduled Workflows (Cron)
@@ -218,4 +218,4 @@ The pattern works identically across frameworks. The only difference is where yo
 
 ## Example
 
-See `examples/environments/` in the agent-browser repo for a working app with the Vercel Sandbox pattern, including a snapshot creation script and demo UI.
+See `examples/demo/` in the agent-browser repo for a working app with the Vercel Sandbox pattern, including a snapshot creation script and demo UI.

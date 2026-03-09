@@ -744,7 +744,7 @@ const res = await fetch(`${process.env.AGENT_BROWSER_API_URL}/api/run`, {
 });
 ```
 
-See the [environments example](examples/environments/) for a playground that demonstrates running agent-browser in different compute environments (serverless functions, Vercel Sandbox, and more).
+See the [demo app](examples/demo/) for a visual demo of agent-browser's core capabilities across different compute environments.
 
 ### Serverless (AWS Lambda)
 

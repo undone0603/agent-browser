@@ -1,18 +1,16 @@
-# agent-browser Environments
+# agent-browser Demo
 
-A playground for running agent-browser in different compute environments. Enter a URL, pick an environment, and take a screenshot or accessibility snapshot.
+A visual demo of agent-browser's core capabilities. Enter a URL, pick a compute environment, and take a screenshot or accessibility snapshot.
 
-Currently supported environments:
+## Environments
 
 - **Serverless Function** -- `@sparticuz/chromium` + `puppeteer-core` running directly inside a Vercel serverless function
 - **Vercel Sandbox** -- agent-browser + Chrome in an ephemeral Linux microVM
 
-More environments (Docker, GitHub Actions, etc.) are coming.
-
 ## Getting Started
 
 ```bash
-cd examples/environments
+cd examples/demo
 pnpm install
 pnpm dev
 ```
@@ -42,7 +40,7 @@ Add the snapshot ID to your Vercel environment variables or `.env.local`.
 ## Project Structure
 
 ```
-examples/environments/
+examples/demo/
   app/
     page.tsx                  # Demo UI
     actions/browse.ts         # Server actions (all environments)

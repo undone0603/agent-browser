@@ -186,4 +186,4 @@ export default nextConfig;
 
 ## Example
 
-See `examples/environments/` in the agent-browser repo for a working app with a demo UI, both serverless and sandbox patterns, and a deploy-to-Vercel button.
+See `examples/demo/` in the agent-browser repo for a working app with both serverless and sandbox patterns, and a deploy-to-Vercel button.
