@@ -79,11 +79,34 @@ export async function screenshotUrl(url: string) {
 
 ```ts
 // next.config.ts
+import path from "node:path";
+
 const nextConfig = {
   serverExternalPackages: ["@sparticuz/chromium"],
+  outputFileTracingIncludes: {
+    "/**": ["./node_modules/@sparticuz/chromium/**"],
+  },
+  // If the app lives in a monorepo subdirectory:
+  outputFileTracingRoot: path.resolve(import.meta.dirname, "../../"),
 };
 export default nextConfig;
 ```
+
+`serverExternalPackages` keeps `@sparticuz/chromium` as an external require
+instead of bundling it. `outputFileTracingIncludes` ensures the brotli-compressed
+Chromium binaries are included in the serverless function bundle.
+
+### pnpm projects
+
+If you use pnpm, add an `.npmrc` to hoist the chromium package so Vercel's
+file tracing can resolve the binary files through pnpm's symlinked
+`node_modules`:
+
+```
+public-hoist-pattern[]=@sparticuz/chromium
+```
+
+Run `pnpm install` again after adding this file.
 
 ## Pattern 2: Vercel Sandbox
 

@@ -30,6 +30,22 @@ npx tsx scripts/create-snapshot.ts
 
 Add the snapshot ID to your Vercel environment variables or `.env.local`.
 
+## Vercel Configuration
+
+The serverless function pattern requires specific Next.js config so the `@sparticuz/chromium` brotli binaries are included in the deployment bundle:
+
+```ts
+// next.config.ts
+const nextConfig = {
+  serverExternalPackages: ["@sparticuz/chromium"],
+  outputFileTracingIncludes: {
+    "/**": ["./node_modules/@sparticuz/chromium/**"],
+  },
+};
+```
+
+This project uses pnpm. The `.npmrc` includes `public-hoist-pattern[]=@sparticuz/chromium` to ensure Vercel's file tracing resolves the binaries through pnpm's symlinked `node_modules`.
+
 ## Environment Variables
 
 | Variable | Environment | Description |

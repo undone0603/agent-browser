@@ -155,27 +155,36 @@ On Vercel, `@sparticuz/chromium` auto-detects the bundled binary. Locally, if Ch
 
 ## Vercel Configuration
 
-The `@sparticuz/chromium` binary is large (~50MB). Increase the serverless function's memory and timeout if needed:
+`@sparticuz/chromium` ships brotli-compressed Chromium binaries that must be included in the serverless function bundle. Three config settings are needed in `next.config.ts`:
 
 ```ts
 // next.config.ts
-const nextConfig = {
-  serverExternalPackages: ["@sparticuz/chromium"],
-};
-export default nextConfig;
-```
-
-If the project lives in a monorepo subdirectory, set `outputFileTracingRoot` so the Chromium binary is included in the deployment:
-
-```ts
 import path from "node:path";
 
 const nextConfig = {
-  outputFileTracingRoot: path.join(import.meta.dirname, "../../"),
   serverExternalPackages: ["@sparticuz/chromium"],
+  outputFileTracingIncludes: {
+    "/**": ["./node_modules/@sparticuz/chromium/**"],
+  },
+  // For monorepo subdirectories:
+  outputFileTracingRoot: path.resolve(import.meta.dirname, "../../"),
 };
 export default nextConfig;
 ```
+
+- `serverExternalPackages` -- keeps `@sparticuz/chromium` as an external require instead of bundling it.
+- `outputFileTracingIncludes` -- explicitly includes the chromium brotli binaries in the function bundle. Without this, Vercel's file tracing may miss them (especially with pnpm).
+- `outputFileTracingRoot` -- required when the Next.js app lives in a monorepo subdirectory, so tracing resolves paths relative to the repo root.
+
+### pnpm projects
+
+If the project uses pnpm, add an `.npmrc` to hoist `@sparticuz/chromium` so Vercel's file tracing can resolve the binary files through pnpm's symlinked `node_modules`:
+
+```
+public-hoist-pattern[]=@sparticuz/chromium
+```
+
+Run `pnpm install` again after adding this file.
 
 ## Limitations
 
