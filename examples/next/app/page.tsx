@@ -8,14 +8,23 @@ import type {
   Mode,
   EnvStatus,
 } from "./actions/browse";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Loader2, Monitor, TriangleAlert, CircleX } from "lucide-react";
 
 type Action = "screenshot" | "snapshot";
 
 function formatError(raw: string): string {
   let cleaned = raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-  const match = cleaned.match(
-    /(?:error|Error)[:\s]*(.{1,200})/,
-  );
+  const match = cleaned.match(/(?:error|Error)[:\s]*(.{1,200})/);
   if (match) cleaned = match[1].trim();
   if (cleaned.length > 300) cleaned = cleaned.slice(0, 300) + "...";
   return cleaned || raw.slice(0, 300);
@@ -31,18 +40,18 @@ function SegmentedControl<T extends string>({
   options: { value: T; label: string }[];
 }) {
   return (
-    <div className="inline-flex rounded-lg bg-surface border border-border p-0.5">
+    <div className="inline-flex rounded-lg border border-input bg-muted p-0.5 w-full">
       {options.map((opt) => (
         <button
           key={opt.value}
           type="button"
           onClick={() => onChange(opt.value)}
           className={`
-            px-3 py-1.5 text-[13px] font-medium rounded-md transition-all cursor-pointer
+            flex-1 px-3 py-1.5 text-[13px] font-medium rounded-md transition-all cursor-pointer
             ${
               value === opt.value
                 ? "bg-background text-foreground shadow-sm"
-                : "text-muted hover:text-foreground"
+                : "text-muted-foreground hover:text-foreground"
             }
           `}
         >
@@ -62,24 +71,21 @@ function EnvBadge({
   value?: string;
   status: "ok" | "warn" | "missing";
 }) {
-  const colors = {
-    ok: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-900",
-    warn: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-900",
-    missing:
-      "bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-900",
-  };
-  const icons = { ok: "\u2713", warn: "\u26A0", missing: "\u2717" };
+  const variant =
+    status === "ok"
+      ? "outline"
+      : status === "warn"
+        ? "secondary"
+        : "destructive";
+  const icon =
+    status === "ok" ? "\u2713" : status === "warn" ? "\u26A0" : "\u2717";
 
   return (
-    <div
-      className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-md border ${colors[status]}`}
-    >
-      <span>{icons[status]}</span>
-      <span className="font-mono">{label}</span>
-      {value && (
-        <span className="opacity-60 max-w-[120px] truncate">{value}</span>
-      )}
-    </div>
+    <Badge variant={variant} className="gap-1 font-mono text-[10px]">
+      <span>{icon}</span>
+      {label}
+      {value && <span className="opacity-60">{value}</span>}
+    </Badge>
   );
 }
 
@@ -89,24 +95,18 @@ function ErrorDisplay({ error }: { error: string }) {
   const showRaw = isHtml && error.length > 100;
 
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/50 overflow-hidden">
-      <div className="flex items-start gap-2.5 p-4">
-        <span className="text-red-500 shrink-0 mt-0.5">{"\u2717"}</span>
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-red-700 dark:text-red-400 mb-1">
-            Request failed
-          </p>
-          <p className="text-[13px] text-red-600 dark:text-red-400/80 leading-relaxed">
-            {message}
-          </p>
-        </div>
-      </div>
+    <div className="w-full max-w-2xl space-y-0">
+      <Alert variant="destructive">
+        <CircleX className="size-4" />
+        <AlertTitle>Request failed</AlertTitle>
+        <AlertDescription>{message}</AlertDescription>
+      </Alert>
       {showRaw && (
-        <details className="border-t border-red-200 dark:border-red-900">
-          <summary className="px-4 py-2 text-[11px] font-medium text-red-500 cursor-pointer hover:bg-red-100 dark:hover:bg-red-950 transition-colors">
+        <details className="border border-t-0 border-border rounded-b-lg overflow-hidden">
+          <summary className="px-4 py-2 text-[11px] font-medium text-muted-foreground cursor-pointer hover:bg-muted transition-colors">
             Show raw response
           </summary>
-          <pre className="px-4 py-3 text-[11px] leading-relaxed text-red-600/70 dark:text-red-400/50 font-mono overflow-auto max-h-[200px] bg-red-100/50 dark:bg-red-950/30">
+          <pre className="px-4 py-3 text-[11px] leading-relaxed text-muted-foreground font-mono overflow-auto max-h-[200px] bg-muted/50">
             {error}
           </pre>
         </details>
@@ -120,14 +120,12 @@ function ModeCard({
   onSelect,
   title,
   description,
-  diagram,
   badges,
 }: {
   selected: boolean;
   onSelect: () => void;
   title: string;
   description: string;
-  diagram: string;
   badges?: React.ReactNode;
 }) {
   return (
@@ -135,34 +133,33 @@ function ModeCard({
       type="button"
       onClick={onSelect}
       className={`
-        flex-1 text-left rounded-xl border p-4 transition-all cursor-pointer
+        w-full text-left rounded-lg border p-3 transition-all cursor-pointer
         ${
           selected
-            ? "border-foreground bg-background ring-1 ring-foreground/10"
-            : "border-border bg-background hover:border-gray-400"
+            ? "border-ring bg-background ring-1 ring-ring/20"
+            : "border-input bg-background hover:border-ring/50"
         }
       `}
     >
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-1.5">
         <div
           className={`
-            size-4 rounded-full border-2 flex items-center justify-center transition-colors
-            ${selected ? "border-foreground" : "border-gray-300"}
+            size-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors
+            ${selected ? "border-foreground" : "border-muted-foreground/30"}
           `}
         >
-          {selected && <div className="size-2 rounded-full bg-foreground" />}
+          {selected && (
+            <div className="size-1.5 rounded-full bg-foreground" />
+          )}
         </div>
-        <span className="text-sm font-semibold">{title}</span>
+        <span className="text-[13px] font-semibold">{title}</span>
       </div>
-      <p className="text-[13px] text-muted leading-relaxed mb-3 pl-6">
+      <p className="text-[12px] text-muted-foreground leading-relaxed pl-[22px] mb-2">
         {description}
       </p>
       {badges && (
-        <div className="flex flex-wrap gap-1.5 mb-3 pl-6">{badges}</div>
+        <div className="flex flex-wrap gap-1.5 pl-[22px]">{badges}</div>
       )}
-      <pre className="bg-surface text-[11px] leading-relaxed text-muted rounded-lg p-3 overflow-auto font-mono border border-border">
-        {diagram}
-      </pre>
     </button>
   );
 }
@@ -214,218 +211,223 @@ export default function Home() {
       : null;
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b border-border">
-        <div className="max-w-3xl mx-auto px-6 h-14 flex items-center gap-3">
-          <span className="text-sm font-semibold tracking-tight">
-            agent-browser
-          </span>
-          <span className="text-muted text-sm">/</span>
-          <span className="text-sm text-muted">Next.js Example</span>
+    <div className="h-screen flex flex-col">
+      <header className="border-b border-border shrink-0">
+        <div className="px-6 h-12 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold tracking-tight">
+              agent-browser
+            </span>
+            <span className="text-muted-foreground text-sm">/</span>
+            <span className="text-sm text-muted-foreground">
+              Next.js Example
+            </span>
+          </div>
+          <a
+            href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fagent-browser%2Fagent-browser%2Ftree%2Fmain%2Fexamples%2Fnext&env=CHROMIUM_PATH&envDescription=Optional%20path%20to%20Chromium%20binary.%20Not%20needed%20on%20Vercel.&envLink=https%3A%2F%2Fgithub.com%2Fagent-browser%2Fagent-browser%2Ftree%2Fmain%2Fexamples%2Fnext%23environment-variables&project-name=agent-browser-app&repository-name=agent-browser-app"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <img
+              src="https://vercel.com/button"
+              alt="Deploy with Vercel"
+              className="h-8"
+            />
+          </a>
         </div>
       </header>
 
-      <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-12">
-        <div className="mb-10">
-          <h1 className="text-2xl font-semibold tracking-tight mb-2">
-            Browser Automation
-          </h1>
-          <p className="text-muted text-[15px] leading-relaxed max-w-lg">
-            Take screenshots and accessibility snapshots of any URL using
-            agent-browser, powered by Vercel serverless functions.
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <input
-                type="url"
-                value={url}
-                onChange={(e) => { setUrl(e.target.value); clearResults(); }}
-                placeholder="https://example.com"
-                required
-                className="w-full h-10 px-3 text-sm bg-background border border-border rounded-lg outline-none transition-colors focus:border-foreground focus:ring-1 focus:ring-foreground/10 placeholder:text-gray-400"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className={`
-                h-10 px-5 text-sm font-medium rounded-lg transition-all inline-flex items-center gap-2 cursor-pointer
-                ${
-                  loading
-                    ? "bg-gray-400 text-white cursor-wait"
-                    : "bg-foreground text-background hover:opacity-90"
-                }
-              `}
-            >
-              {loading && (
-                <svg
-                  className="animate-spin size-3.5"
-                  viewBox="0 0 24 24"
-                  fill="none"
+      <ResizablePanelGroup orientation="horizontal" className="flex-1">
+        <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+          <aside className="h-full overflow-y-auto">
+            <form onSubmit={handleSubmit} className="p-5 space-y-5">
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="url-input"
+                  className="text-[11px] text-muted-foreground uppercase tracking-wider"
                 >
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    className="opacity-25"
-                  />
-                  <path
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    fill="currentColor"
-                    className="opacity-75"
-                  />
-                </svg>
-              )}
-              {loading ? "Running..." : "Run"}
-            </button>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <SegmentedControl<Action>
-              value={action}
-              onChange={(v) => { setAction(v); clearResults(); }}
-              options={[
-                { value: "screenshot", label: "Screenshot" },
-                { value: "snapshot", label: "Snapshot" },
-              ]}
-            />
-            <span className="text-[13px] text-muted">
-              {action === "screenshot"
-                ? "Captures a full-page PNG image"
-                : "Returns the accessibility tree"}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <ModeCard
-              selected={mode === "serverless"}
-              onSelect={() => { setMode("serverless"); clearResults(); }}
-              title="Serverless Function"
-              description="Runs @sparticuz/chromium + puppeteer-core directly in a Vercel function. No external dependencies."
-              diagram={[
-                "Vercel Function",
-                "+----------------------------+",
-                "| Next.js Server Action      |",
-                "| puppeteer-core             |",
-                "| @sparticuz/chromium        |",
-                "+----------------------------+",
-              ].join("\n")}
-              badges={
-                envStatus && (
-                  <EnvBadge
-                    label="@sparticuz/chromium"
-                    status={
-                      envStatus.serverless.isVercel
-                        ? "ok"
-                        : envStatus.serverless.hasChromiumPath
-                          ? "ok"
-                          : "warn"
-                    }
-                    value={
-                      envStatus.serverless.isVercel
-                        ? "auto"
-                        : envStatus.serverless.hasChromiumPath
-                          ? "CHROMIUM_PATH"
-                          : "system Chrome"
-                    }
-                  />
-                )
-              }
-            />
-            <ModeCard
-              selected={mode === "sandbox"}
-              onSelect={() => { setMode("sandbox"); clearResults(); }}
-              title="Vercel Sandbox"
-              description="Ephemeral microVM with agent-browser + Chrome. Isolated environment, no cold-start binary limits."
-              diagram={[
-                "Vercel",
-                "+---------+    +------------------+",
-                "| Action  | -> | Sandbox (microVM)|",
-                "+---------+    | agent-browser    |",
-                "               | Chrome           |",
-                "               +------------------+",
-              ].join("\n")}
-              badges={
-                envStatus && (
-                  <EnvBadge
-                    label="AGENT_BROWSER_SNAPSHOT_ID"
-                    status={
-                      envStatus.sandbox.hasSnapshot ? "ok" : "warn"
-                    }
-                  />
-                )
-              }
-            />
-          </div>
-
-          {envWarning && (
-            <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[13px] leading-relaxed text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
-              <span className="shrink-0 mt-0.5">{"\u26A0"}</span>
-              <div>
-                <p className="font-medium mb-0.5">Local development note</p>
-                <p className="text-amber-700 dark:text-amber-400">
-                  {envWarning}
-                </p>
-                <code className="mt-2 block text-[11px] font-mono bg-amber-100 dark:bg-amber-900/50 rounded px-2 py-1.5 text-amber-900 dark:text-amber-200">
-                  CHROMIUM_PATH=/path/to/chromium
-                </code>
+                  URL
+                </Label>
+                <Input
+                  id="url-input"
+                  type="url"
+                  value={url}
+                  onChange={(e) => {
+                    setUrl(e.target.value);
+                    clearResults();
+                  }}
+                  placeholder="https://example.com"
+                  required
+                />
               </div>
-            </div>
-          )}
-        </form>
 
-        {hasResult && (
-          <div className="mt-10 pt-8 border-t border-border">
-            {screenshotResult &&
-              (screenshotResult.ok ? (
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-semibold">
-                      {screenshotResult.title}
-                    </h2>
-                    <span className="text-xs text-muted font-mono bg-surface px-2 py-1 rounded-md border border-border">
-                      screenshot
-                    </span>
-                  </div>
-                  <div className="rounded-xl border border-border overflow-hidden">
-                    <img
-                      src={`data:image/png;base64,${screenshotResult.screenshot}`}
-                      alt={screenshotResult.title}
-                      className="w-full block"
+              <div className="space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground uppercase tracking-wider">
+                  Action
+                </Label>
+                <SegmentedControl<Action>
+                  value={action}
+                  onChange={(v) => {
+                    setAction(v);
+                    clearResults();
+                  }}
+                  options={[
+                    { value: "screenshot", label: "Screenshot" },
+                    { value: "snapshot", label: "Snapshot" },
+                  ]}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  {action === "screenshot"
+                    ? "Captures a full-page PNG image"
+                    : "Returns the accessibility tree"}
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground uppercase tracking-wider">
+                  Runtime
+                </Label>
+                <div className="space-y-2">
+                  <ModeCard
+                    selected={mode === "serverless"}
+                    onSelect={() => {
+                      setMode("serverless");
+                      clearResults();
+                    }}
+                    title="Serverless Function"
+                    description="Runs @sparticuz/chromium + puppeteer-core directly in a Vercel function."
+                    badges={
+                      envStatus && (
+                        <EnvBadge
+                          label="@sparticuz/chromium"
+                          status={
+                            envStatus.serverless.isVercel
+                              ? "ok"
+                              : envStatus.serverless.hasChromiumPath
+                                ? "ok"
+                                : "warn"
+                          }
+                          value={
+                            envStatus.serverless.isVercel
+                              ? "auto"
+                              : envStatus.serverless.hasChromiumPath
+                                ? "CHROMIUM_PATH"
+                                : "system Chrome"
+                          }
+                        />
+                      )
+                    }
+                  />
+                  <ModeCard
+                    selected={mode === "sandbox"}
+                    onSelect={() => {
+                      setMode("sandbox");
+                      clearResults();
+                    }}
+                    title="Vercel Sandbox"
+                    description="Ephemeral microVM with agent-browser + Chrome. No binary size limits."
+                    badges={
+                      envStatus && (
+                        <EnvBadge
+                          label="AGENT_BROWSER_SNAPSHOT_ID"
+                          status={
+                            envStatus.sandbox.hasSnapshot ? "ok" : "warn"
+                          }
+                        />
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              {envWarning && (
+                <Alert>
+                  <TriangleAlert className="size-4" />
+                  <AlertTitle>Local development</AlertTitle>
+                  <AlertDescription>{envWarning}</AlertDescription>
+                </Alert>
+              )}
+
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full"
+                size="lg"
+              >
+                {loading && <Loader2 className="size-4 animate-spin" />}
+                {loading ? "Running..." : "Run"}
+              </Button>
+            </form>
+          </aside>
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
+
+        <ResizablePanel defaultSize={70}>
+          <main className="h-full overflow-auto bg-surface">
+            {loading ? (
+              <div className="h-full flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                <Loader2 className="size-6 animate-spin" />
+                <p className="text-sm">Taking {action}...</p>
+              </div>
+            ) : hasResult ? (
+              <div className="h-full flex flex-col items-center p-6 lg:p-10">
+                {screenshotResult &&
+                  (screenshotResult.ok ? (
+                    <div className="w-full max-w-3xl">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-sm font-semibold truncate mr-3">
+                          {screenshotResult.title}
+                        </h2>
+                        <Badge variant="outline" className="font-mono text-[11px] shrink-0">
+                          screenshot
+                        </Badge>
+                      </div>
+                      <div className="rounded-xl border border-border overflow-hidden shadow-sm">
+                        <img
+                          src={`data:image/png;base64,${screenshotResult.screenshot}`}
+                          alt={screenshotResult.title}
+                          className="w-full block"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <ErrorDisplay
+                      error={screenshotResult.error ?? "Unknown error"}
                     />
-                  </div>
-                </div>
-              ) : (
-                <ErrorDisplay error={screenshotResult.error ?? "Unknown error"} />
-              ))}
+                  ))}
 
-            {snapshotResult &&
-              (snapshotResult.ok ? (
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-semibold">
-                      {snapshotResult.title}
-                    </h2>
-                    <span className="text-xs text-muted font-mono bg-surface px-2 py-1 rounded-md border border-border">
-                      snapshot
-                    </span>
-                  </div>
-                  <pre className="bg-surface rounded-xl border border-border p-5 overflow-auto text-[13px] leading-relaxed font-mono max-h-[500px]">
-                    {snapshotResult.snapshot}
-                  </pre>
-                </div>
-              ) : (
-                <ErrorDisplay error={snapshotResult.error ?? "Unknown error"} />
-              ))}
-          </div>
-        )}
-      </main>
-
+                {snapshotResult &&
+                  (snapshotResult.ok ? (
+                    <div className="w-full max-w-3xl">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-sm font-semibold truncate mr-3">
+                          {snapshotResult.title}
+                        </h2>
+                        <Badge variant="outline" className="font-mono text-[11px] shrink-0">
+                          snapshot
+                        </Badge>
+                      </div>
+                      <pre className="bg-card rounded-xl border border-border p-5 overflow-auto text-[13px] leading-relaxed font-mono max-h-[calc(100vh-12rem)]">
+                        {snapshotResult.snapshot}
+                      </pre>
+                    </div>
+                  ) : (
+                    <ErrorDisplay
+                      error={snapshotResult.error ?? "Unknown error"}
+                    />
+                  ))}
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                <Monitor className="size-12 mb-4 opacity-30" strokeWidth={1} />
+                <p className="text-sm font-medium mb-1">No result yet</p>
+                <p className="text-[13px]">Enter a URL and click Run</p>
+              </div>
+            )}
+          </main>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }
