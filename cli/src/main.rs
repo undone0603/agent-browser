@@ -1040,6 +1040,7 @@ fn daemon_options_from_flags(flags: &flags::Flags) -> DaemonOptions<'_> {
         action_policy: flags.action_policy.as_deref(),
         confirm_actions: flags.confirm_actions.as_deref(),
         native: flags.native,
+        engine: flags.engine.as_deref(),
     }
 }
 
