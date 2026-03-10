@@ -23,6 +23,8 @@ jobs:
   queue-integration:
     name: Queue Integration
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     services:
       redis:
         image: redis:7-alpine
@@ -60,13 +62,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.3.1
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.8.2
         with:
           workspaces: cli
 
@@ -170,7 +172,7 @@ jobs:
 
       - name: Upload queue integration artifacts
         if: always() && inputs.upload_artifacts == true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: queue-integration-artifacts
           path: queue-integration-artifacts
