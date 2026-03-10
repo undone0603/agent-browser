@@ -73,7 +73,11 @@ jobs:
       - name: Install integration test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y awscli curl jq postgresql-client redis-tools
+          sudo apt-get install -y curl jq postgresql-client redis-tools python3-pip pipx
+          if ! command -v aws >/dev/null 2>&1; then
+            pipx install awscli
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          fi
 
       - name: Wait for Postgres
         run: |
