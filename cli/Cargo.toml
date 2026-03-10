@@ -22,6 +22,11 @@ sha2 = "0.10"
 aes-gcm = "0.10"
 async-trait = "0.1"
 similar = "2"
+redis = "0.27"
+postgres = "0.19"
+aws-config = "1"
+aws-sdk-sqs = "1"
+async-nats = "0.38"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
