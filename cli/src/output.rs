@@ -817,6 +817,115 @@ pub fn print_response_with_opts(resp: &Response, action: Option<&str>, opts: &Ou
 /// Print command-specific help. Returns true if help was printed, false if command unknown.
 pub fn print_command_help(command: &str) -> bool {
     let help = match command {
+        // === Worker Runtime Shim ===
+        "worker" => {
+            r##"
+agent-browser worker - Run queue worker loop
+
+Usage: agent-browser worker
+
+Reads jobs from the selected queue backend and executes each job against the daemon.
+Each output line is JSON with job status and daemon response.
+For postgres backend, failed jobs are nacked and re-queued until max attempts.
+Stale processing jobs are reclaimed after claim TTL.
+For redis-streams backend, failed jobs are re-queued with attempt count and dead-lettered at max attempts.
+Stale redis pending messages are reclaimed via XAUTOCLAIM when supported.
+For sqs backend, failed jobs are re-queued with attempt metadata and dead-lettered at max attempts.
+For nats-jetstream backend, failed jobs are nacked for redelivery and terminal failures are published to failed subject.
+Worker emits "queue_backpressure" events when governance applies tenant hard caps or rate limits.
+Hard-cap backpressure (`hardCap=true`) is settled with terminal queue failure instead of requeue.
+Persisted governance snapshots include tenant counters: blocked, terminalFailed, and lastReasonCode.
+Persisted governance snapshots also include global counters: blockedTotal, terminalFailedTotal, and lastReasonCode.
+Use `agent-browser worker affinity-stats` to read the latest persisted worker pool snapshot.
+Text mode for `worker affinity-stats` prints per-tenant backpressure counters from that snapshot.
+Use `powershell -ExecutionPolicy Bypass -File .\scripts\run-queue-integration-tests.ps1` to run real-service queue integration tests.
+The manual GitHub Actions `Queue Integration` workflow accepts a `backends` input for selective runs.
+It also accepts `fail_fast` and `upload_artifacts` inputs.
+
+Queue backend selection:
+  --queue-backend <backend>   stdin | redis-streams | sqs | postgres | nats-jetstream
+  AGENT_BROWSER_QUEUE_BACKEND Same as --queue-backend
+  AGENT_BROWSER_QUEUE_ERROR_BACKOFF_MS Backoff between queue receive errors in ms (default: 1000)
+  AGENT_BROWSER_QUEUE_MAX_CONSECUTIVE_ERRORS Max consecutive queue errors before worker exits (default: 30)
+  AGENT_BROWSER_QUEUE_BACKPRESSURE_SLEEP_MS Minimum backpressure delay before NACK in ms (default: 1000)
+  AGENT_BROWSER_POOL_MAX_CONTEXTS Max browser sessions per worker pool (default: 1)
+  AGENT_BROWSER_POOL_MAX_PAGES Max total tabs/pages across pooled sessions (default: disabled)
+  AGENT_BROWSER_POOL_RECYCLE_MIN_SCORE Recycle session when health score falls to or below this value (default: 40)
+  AGENT_BROWSER_POOL_RECYCLE_AFTER_JOBS Recycle session after this many jobs (default: 200)
+  AGENT_BROWSER_POOL_PAGE_PROBE_EVERY Recompute tab count every N jobs per session (default: 5)
+  AGENT_BROWSER_POOL_AFFINITY_TTL_JOBS Expire idle affinity bindings after N observed jobs (default: 1000)
+  AGENT_BROWSER_POOL_AFFINITY_STRATEGY Affinity strategy: sticky | none (default: sticky)
+  AGENT_BROWSER_POOL_AFFINITY_SCOPE Derived affinity granularity: context | session (default: context)
+  AGENT_BROWSER_POOL_STATS_PATH File path used to persist worker pool metrics (default: <socket_dir>/<session>.pool-stats.json)
+  AGENT_BROWSER_TENANT_BUDGET_MAX_JOBS Max admitted jobs per tenant before policy blocks (default: disabled)
+  AGENT_BROWSER_TENANT_BUDGET_MAX_FAILURES Max failed jobs per tenant before policy blocks (default: disabled)
+  AGENT_BROWSER_DOMAIN_MIN_INTERVAL_MS Minimum milliseconds between jobs targeting the same domain (default: disabled)
+  AGENT_BROWSER_JOB_TIMEOUT_MS Worker command timeout for daemon responses in ms (default: 30000 when unset)
+
+Backend configuration:
+  stdin              No additional environment variables required
+  redis-streams      AGENT_BROWSER_REDIS_* variables
+  sqs                AGENT_BROWSER_SQS_* variables
+  postgres           AGENT_BROWSER_PG_* variables
+  nats-jetstream     AGENT_BROWSER_NATS_* variables
+
+Input job JSON:
+  { "jobId": "job-1", "session": "default", "command": { "action": "snapshot" } }
+  { "jobId": "job-2", "argv": ["open", "example.com"] }
+  { "jobId": "job-3", "tenantId": "t1", "workflowId": "wfA", "contextId": "lead-42", "argv": ["snapshot"] }
+
+Global Options:
+  --session <name>     Default session when job omits "session"
+  --json               Standard JSON flag (worker output is always JSON lines)
+
+Examples:
+  echo "{\"jobId\":\"j1\",\"argv\":[\"open\",\"example.com\"]}" | agent-browser worker
+  agent-browser worker --queue-backend redis-streams
+  cat jobs.ndjson | agent-browser worker
+  agent-browser worker affinity-stats --json
+"##
+        }
+        "run-job" => {
+            r##"
+agent-browser run-job - Execute one JSON job payload
+
+Usage: agent-browser run-job <job-json|-> 
+
+Executes a single job JSON payload. Use "-" to read JSON from stdin.
+
+Job JSON supports either:
+  1. "command": raw protocol command object
+  2. "argv": CLI argument array that will be parsed like a normal command
+Optional sticky routing fields:
+  - "affinity_key" or "affinityKey"
+  - "tenant_id"/"tenantId", "workflow_id"/"workflowId", "context_id"/"contextId"
+  - "affinity_scope"/"affinityScope" ("context" or "session", overrides default derivation scope)
+
+Examples:
+  agent-browser run-job "{{\"jobId\":\"j1\",\"argv\":[\"snapshot\"]}}"
+  echo "{\"command\":{\"action\":\"snapshot\"}}" | agent-browser run-job -
+"##
+        }
+        "health" => {
+            r##"
+agent-browser health - Check daemon endpoint health
+
+Usage: agent-browser health
+
+Reports whether the daemon for the current session is running and responsive.
+This command does not start the daemon.
+Includes worker pool/runtime governance configuration derived from AGENT_BROWSER_POOL_* and AGENT_BROWSER_* governance env vars.
+
+Global Options:
+  --session <name>     Check a specific session
+  --json               Machine-readable output
+
+Examples:
+  agent-browser health
+  agent-browser --session worker-a health --json
+"##
+        }
+
         // === Navigation ===
         "open" | "goto" | "navigate" => {
             r##"
@@ -2343,6 +2452,12 @@ Core Commands:
   connect <port|url>         Connect to browser via CDP
   close                      Close browser
 
+Worker Runtime:
+  worker                     Read NDJSON jobs from stdin or selected queue backend
+  worker affinity-stats      Read latest persisted worker pool affinity metrics
+  run-job <job-json|->       Execute one JSON job payload
+  health                     Check daemon health for a session
+
 Navigation:
   back                       Go back
   forward                    Go forward
@@ -2450,6 +2565,7 @@ Options:
   --confirm-actions <list>   Categories requiring confirmation (or AGENT_BROWSER_CONFIRM_ACTIONS)
   --confirm-interactive      Interactive confirmation prompts; auto-denies if stdin is not a TTY (or AGENT_BROWSER_CONFIRM_INTERACTIVE)
   --engine <name>            Browser engine: chrome (default), lightpanda; implies --native (or AGENT_BROWSER_ENGINE)
+  --queue-backend <name>     Worker queue backend (worker command only)
   --native                   [Experimental] Use native Rust daemon instead of Node.js (or AGENT_BROWSER_NATIVE)
   --config <path>            Use a custom config file (or AGENT_BROWSER_CONFIG env)
   --debug                    Debug output
@@ -2507,6 +2623,49 @@ Environment:
   AGENT_BROWSER_CONFIRM_ACTIONS  Action categories requiring confirmation
   AGENT_BROWSER_CONFIRM_INTERACTIVE Enable interactive confirmation prompts
   AGENT_BROWSER_ENGINE           Browser engine: chrome (default), lightpanda
+  AGENT_BROWSER_QUEUE_BACKEND    Worker queue backend (stdin, redis-streams, sqs, postgres, nats-jetstream)
+  AGENT_BROWSER_QUEUE_ERROR_BACKOFF_MS Backoff between queue receive errors in ms (default: 1000)
+  AGENT_BROWSER_QUEUE_MAX_CONSECUTIVE_ERRORS Max consecutive queue errors before worker exits (default: 30)
+  AGENT_BROWSER_QUEUE_BACKPRESSURE_SLEEP_MS Minimum backpressure delay before NACK in ms (default: 1000)
+  AGENT_BROWSER_POOL_MAX_CONTEXTS Max browser sessions per worker pool (default: 1)
+  AGENT_BROWSER_POOL_MAX_PAGES   Max total tabs/pages across pooled sessions (default: disabled)
+  AGENT_BROWSER_POOL_RECYCLE_MIN_SCORE Recycle session when health score falls to or below this value (default: 40)
+  AGENT_BROWSER_POOL_RECYCLE_AFTER_JOBS Recycle session after this many jobs (default: 200)
+  AGENT_BROWSER_POOL_PAGE_PROBE_EVERY Recompute tab count every N jobs per session (default: 5)
+  AGENT_BROWSER_POOL_AFFINITY_TTL_JOBS Expire idle affinity bindings after N observed jobs (default: 1000)
+  AGENT_BROWSER_POOL_AFFINITY_STRATEGY Affinity strategy: sticky | none (default: sticky)
+  AGENT_BROWSER_POOL_AFFINITY_SCOPE Derived affinity granularity: context | session (default: context)
+  AGENT_BROWSER_POOL_STATS_PATH File path used to persist worker pool metrics
+  AGENT_BROWSER_TENANT_BUDGET_MAX_JOBS Max admitted jobs per tenant before policy blocks
+  AGENT_BROWSER_TENANT_BUDGET_MAX_FAILURES Max failed jobs per tenant before policy blocks
+  AGENT_BROWSER_DOMAIN_MIN_INTERVAL_MS Minimum milliseconds between jobs targeting the same domain
+  AGENT_BROWSER_JOB_TIMEOUT_MS Worker command timeout for daemon responses in ms
+  AGENT_BROWSER_REDIS_URL        Redis connection URL for redis-streams backend
+  AGENT_BROWSER_REDIS_STREAM     Redis stream name for redis-streams backend
+  AGENT_BROWSER_REDIS_GROUP      Redis consumer group name (default: agent-browser-workers)
+  AGENT_BROWSER_REDIS_CONSUMER   Redis consumer name (default: <host>-<pid>)
+  AGENT_BROWSER_REDIS_BLOCK_MS   Redis XREADGROUP block timeout in ms (default: 5000)
+  AGENT_BROWSER_REDIS_CLAIM_IDLE_MS Redis stale-pending reclaim threshold in ms (default: 300000)
+  AGENT_BROWSER_REDIS_MAX_ATTEMPTS Redis max retries before dead-letter (default: 10)
+  AGENT_BROWSER_REDIS_FAILED_STREAM Redis dead-letter stream name (default: <stream>:failed)
+  AGENT_BROWSER_SQS_QUEUE_URL    SQS queue URL for sqs backend (required)
+  AGENT_BROWSER_SQS_WAIT_SECONDS SQS long-poll wait seconds (default: 20)
+  AGENT_BROWSER_SQS_MAX_ATTEMPTS SQS max retries before dead-letter (default: 10)
+  AGENT_BROWSER_SQS_DLQ_URL      SQS dead-letter queue URL for terminal failures (required when max retries reached)
+  AGENT_BROWSER_NATS_URL         NATS server URL for nats-jetstream backend (default: nats://127.0.0.1:4222)
+  AGENT_BROWSER_NATS_STREAM      JetStream stream name for nats-jetstream backend (required)
+  AGENT_BROWSER_NATS_SUBJECT     JetStream subject for job messages (default: agentz.jobs)
+  AGENT_BROWSER_NATS_CONSUMER    JetStream durable consumer name (default: agent-browser-workers)
+  AGENT_BROWSER_NATS_FETCH_TIMEOUT_MS JetStream fetch timeout in ms (default: 5000)
+  AGENT_BROWSER_NATS_ACK_WAIT_MS JetStream ack wait timeout in ms (default: 30000)
+  AGENT_BROWSER_NATS_MAX_ATTEMPTS JetStream max deliveries before terminal handling (default: 10)
+  AGENT_BROWSER_NATS_FAILED_SUBJECT JetStream subject for terminal failures (default: <subject>.failed)
+  AGENT_BROWSER_PG_QUEUE_DSN     Postgres DSN for postgres backend (required)
+  AGENT_BROWSER_PG_QUEUE_TABLE   Postgres queue table name (default: agentz_jobs)
+  AGENT_BROWSER_PG_QUEUE_CONSUMER Postgres consumer name (default: <host>-<pid>)
+  AGENT_BROWSER_PG_POLL_MS       Postgres poll interval in ms (default: 2000)
+  AGENT_BROWSER_PG_CLAIM_TTL_MS  Postgres reclaim threshold for stale processing jobs in ms (default: 300000)
+  AGENT_BROWSER_PG_MAX_ATTEMPTS  Postgres max retries before marking failed (default: 10)
   AGENT_BROWSER_NATIVE           Use native Rust daemon (experimental, no Node.js/Playwright)
 
 Install (recommended, fastest - native Rust CLI):
@@ -2531,6 +2690,10 @@ Examples:
   agent-browser --color-scheme dark open example.com  # Dark mode
   agent-browser --profile ~/.myapp open example.com    # Persistent profile
   agent-browser --session-name myapp open example.com  # Auto-save/restore state
+  agent-browser health --json
+  agent-browser run-job "{{\"jobId\":\"j1\",\"argv\":[\"snapshot\"]}}"
+  cat jobs.ndjson | agent-browser worker
+  agent-browser worker affinity-stats --json
 
 Command Chaining:
   Chain commands with && in a single shell call (browser persists via daemon):
@@ -2628,3 +2791,4 @@ fn print_screenshot_diff(data: &serde_json::Map<String, serde_json::Value>) {
 pub fn print_version() {
     println!("agent-browser {}", env!("CARGO_PKG_VERSION"));
 }
+

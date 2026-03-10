@@ -203,10 +203,36 @@ fn daemon_ready(session: &str) -> bool {
     }
 }
 
+/// Read-only daemon health check that does not start a daemon.
+pub fn daemon_health(session: &str) -> DaemonHealth {
+    #[cfg(unix)]
+    let endpoint = format!(
+        "socket:{}",
+        get_socket_dir().join(format!("{}.sock", session)).display()
+    );
+    #[cfg(windows)]
+    let endpoint = format!("tcp:127.0.0.1:{}", get_port_for_session(session));
+
+    let running = is_daemon_running(session);
+    let responsive = running && daemon_ready(session);
+    DaemonHealth {
+        running,
+        responsive,
+        endpoint,
+    }
+}
+
 /// Result of ensure_daemon indicating whether a new daemon was started
 pub struct DaemonResult {
     /// True if we connected to an existing daemon, false if we started a new one
     pub already_running: bool,
+}
+
+/// Runtime status for a daemon session endpoint.
+pub struct DaemonHealth {
+    pub running: bool,
+    pub responsive: bool,
+    pub endpoint: String,
 }
 
 /// Options forwarded to the daemon process as environment variables.
@@ -559,6 +585,14 @@ fn connect(session: &str) -> Result<Connection, String> {
 }
 
 pub fn send_command(cmd: Value, session: &str) -> Result<Response, String> {
+    send_command_with_timeout(cmd, session, None)
+}
+
+pub fn send_command_with_timeout(
+    cmd: Value,
+    session: &str,
+    read_timeout_ms: Option<u64>,
+) -> Result<Response, String> {
     // Retry logic for transient errors (EAGAIN/EWOULDBLOCK/connection issues)
     const MAX_RETRIES: u32 = 5;
     const RETRY_DELAY_MS: u64 = 200;
@@ -570,7 +604,7 @@ pub fn send_command(cmd: Value, session: &str) -> Result<Response, String> {
             thread::sleep(Duration::from_millis(RETRY_DELAY_MS * (attempt as u64)));
         }
 
-        match send_command_once(&cmd, session) {
+        match send_command_once(&cmd, session, read_timeout_ms) {
             Ok(response) => return Ok(response),
             Err(e) => {
                 if is_transient_error(&e) {
@@ -611,10 +645,18 @@ fn is_transient_error(error: &str) -> bool {
         || error.contains("os error 111") // Connection refused (Linux)
 }
 
-fn send_command_once(cmd: &Value, session: &str) -> Result<Response, String> {
+fn send_command_once(
+    cmd: &Value,
+    session: &str,
+    read_timeout_ms: Option<u64>,
+) -> Result<Response, String> {
     let mut stream = connect(session)?;
 
-    stream.set_read_timeout(Some(Duration::from_secs(30))).ok();
+    let read_timeout = read_timeout_ms
+        .filter(|v| *v > 0)
+        .map(Duration::from_millis)
+        .unwrap_or_else(|| Duration::from_secs(30));
+    stream.set_read_timeout(Some(read_timeout)).ok();
     stream.set_write_timeout(Some(Duration::from_secs(5))).ok();
 
     let mut json_str = serde_json::to_string(cmd).map_err(|e| e.to_string())?;
